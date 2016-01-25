@@ -5,15 +5,52 @@ import (
 	"fmt"
 )
 
-type ENVManager struct {
-	
+type ControlMessageType int
+
+const (
+	TERMINATE = iota
+)
+
+type ControlMessage struct {
+	messageType ControlMessageType
 }
 
-func (em *ENVManager) Start(terminate chan int) {
+const (
+	LISTENING_PORT = 39461
+)
+
+type ENVManager struct {
+}
+
+func (em *ENVManager) Start(control chan ControlMessage) {
 	connectionManager := new(SHIPConnectionManager)
-	connectionManager.Start()
+	connectionManager.Init()
+	go connectionManager.Start()
+
+	connectionManager.inputMessageChannel <- SHIPConnectionManagerInputMessage{
+		messageType: SCM_LISTEN,
+		port:        LISTENING_PORT,
+	}
+
+mainLoop:
 	for {
-		msg := <-connectionManager.control
-		fmt.Println(msg)
+		select {
+		case ctrlMsg := <-control:
+			switch ctrlMsg.messageType {
+			case TERMINATE:
+				break mainLoop
+			}
+		case scmMsg := <-connectionManager.outputMessageChannel:
+			switch scmMsg.messageType {
+			case SCM_LISTEN_SUCCESS:
+				fmt.Println("Listening on port", LISTENING_PORT)
+			case SCM_LISTEN_FAILED:
+				fmt.Println("Listen failed:", scmMsg.err)
+			case SCM_SHIP_CONNECTED:
+				fmt.Println("A new SHIP connected.")
+			case SCM_SHIP_DISCONNECTED:
+				fmt.Println("A SHIP disconnected.")
+			}
+		}
 	}
 }

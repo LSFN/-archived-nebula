@@ -2,24 +2,45 @@
 package env
 
 import (
-	"net"
 	"fmt"
+	"net"
 )
 
-type SHIPMessage int
+type SHIPConnectionHandlerInputMessageType int
 
-type SHIPConnectionHandler struct {
-	connection net.Conn
-	IncomingMessages chan SHIPMessage
+const (
+	SCH_DISCONNECT = iota
+)
+
+type SHIPConnectionHandlerInputMessage struct {
+	messageType SHIPConnectionHandlerInputMessageType
 }
 
-func (c *SHIPConnectionHandler) HandleSHIPConnection(conn net.Conn) {
-	c.connection = conn
+type SHIPConnectionHandlerOutputMessageType int
+
+const (
+	SCH_DISCONNECTED = iota
+)
+
+type SHIPConnectionHandlerOutputMessage struct {
+	messageType SHIPConnectionHandlerOutputMessageType
+}
+
+type SHIPConnectionHandler struct {
+	inputMessageChannel  chan SHIPConnectionHandlerInputMessage
+	outputMessageChannel chan SHIPConnectionHandlerOutputMessage
+}
+
+func (c *SHIPConnectionHandler) Start(conn net.Conn) {
+	c.inputMessageChannel = make(chan SHIPConnectionHandlerInputMessage)
+	c.outputMessageChannel = make(chan SHIPConnectionHandlerOutputMessage)
+	buf := make([]byte, 0, 1024)
 	for {
-		buf := make([]byte, 0, 1024)
-		bytesRead, err := c.connection.Read(buf)
+		bytesRead, err := conn.Read(buf)
 		if err != nil {
 			fmt.Println("Connection read error.")
+			conn.Close()
+			break
 		}
 		fmt.Printf("Read %d bytes", bytesRead)
 	}

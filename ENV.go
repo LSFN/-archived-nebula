@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	terminate := make(chan int)
+	terminate := make(chan env.ControlMessage)
 	fmt.Println("Starting")
 	envManager := new(env.ENVManager)
 	go envManager.Start(terminate)
