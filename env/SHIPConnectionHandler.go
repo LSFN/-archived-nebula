@@ -56,6 +56,7 @@ func (c *SHIPConnectionHandler) Start(conn net.Conn) {
 
 func (c *SHIPConnectionHandler) ReadMessages(conn net.Conn) {
 	defer conn.Close()
+
 	reader := bufio.NewReader(conn)
 	readBuffer := make([]byte, DEFAULT_READ_BUFFER_SIZE)
 
@@ -96,6 +97,10 @@ readLoop:
 		// Send message on channel
 		c.inboundMessages <- message
 	}
+
+	// The SHIP has disconnected or the connection has suffered an error
+	// Close the inbound channel to indicate this to the next layer
+	c.inboundMessages.close()
 }
 
 func (c *SHIPConnectionHandler) writeMessages(conn net.Conn) {
@@ -103,10 +108,8 @@ func (c *SHIPConnectionHandler) writeMessages(conn net.Conn) {
 	writer := bufio.NewWriter(conn)
 
 writeLoop:
-	for {
-		// Take the next message to send
-		message := <-c.outboundMessages
-
+	// Loop whilst the channel is open
+	for message := range c.outboundMessages {
 		// Marshal the message
 		marshaledMessage, err := proto.Marshal(message)
 		if err != nil {
