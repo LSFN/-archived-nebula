@@ -4,7 +4,6 @@ package env
 import (
 	"bufio"
 	"encoding/binary"
-	"fmt"
 	"net"
 
 	"github.com/golang/protobuf/proto"
@@ -44,18 +43,23 @@ type SHIPConnectionHandler struct {
 }
 
 func (c *SHIPConnectionHandler) Start(conn net.Conn) {
-	defer conn.Close()
+
 	c.inputMessageChannel = make(chan SHIPConnectionHandlerInputMessage)
 	c.outputMessageChannel = make(chan SHIPConnectionHandlerOutputMessage)
 	c.inboundMessages = make(chan *shipenvproto.SHIPtoENV)
 	c.outboundMessages = make(chan *shipenvproto.ENVtoSHIP)
 
-	reader := bufio.NewReader(conn)
-	writer := bufio.NewWriter(conn)
+	go c.ReadMessages(conn)
+	go c.writeMessages(conn)
 
+}
+
+func (c *SHIPConnectionHandler) ReadMessages(conn net.Conn) {
+	defer conn.Close()
+	reader := bufio.NewReader(conn)
 	readBuffer := make([]byte, DEFAULT_READ_BUFFER_SIZE)
 
-outer:
+readLoop:
 	for {
 		// Read the message length
 		msgLen, err := binary.ReadUvarint(reader)
@@ -64,7 +68,7 @@ outer:
 		}
 
 		// Expand main buffer if necessary
-		currentCap := cap(readBuffer)
+		currentCap := uint64(cap(readBuffer))
 		if currentCap < msgLen {
 			for currentCap < msgLen {
 				currentCap *= 2
@@ -73,24 +77,62 @@ outer:
 		}
 
 		// Read the message body
-		bytesRead := 0
+		var bytesRead uint64 = 0
 		msgReadBuffer := readBuffer[:msgLen]
 		for bytesRead < msgLen {
 			n, err := reader.Read(msgReadBuffer[bytesRead:])
-			bytesRead += n
+			bytesRead += uint64(n)
 			if err != nil {
-				break outer
+				break readLoop
 			}
 		}
 
 		// Unmarshal the message
-		message := new shipenvproto.ENVtoSHIP
+		message := new(shipenvproto.SHIPtoENV)
 		if err := proto.Unmarshal(msgReadBuffer, message); err != nil {
 			break
 		}
-		
+
 		// Send message on channel
 		c.inboundMessages <- message
 	}
-	
+}
+
+func (c *SHIPConnectionHandler) writeMessages(conn net.Conn) {
+	defer conn.Close()
+	writer := bufio.NewWriter(conn)
+
+writeLoop:
+	for {
+		// Take the next message to send
+		message := <-c.outboundMessages
+
+		// Marshal the message
+		marshaledMessage, err := proto.Marshal(message)
+		if err != nil {
+			break
+		}
+
+		// Write the length of the message
+		lengthBuffer := make([]byte, 0, binary.MaxVarintLen64)
+		binary.PutUvarint(lengthBuffer, uint64(len(marshaledMessage)))
+		bytesWritten := 0
+		for bytesWritten < len(lengthBuffer) {
+			n, err := writer.Write(lengthBuffer)
+			bytesWritten += n
+			if err != nil {
+				break writeLoop
+			}
+		}
+
+		// Write the message body
+		bytesWritten = 0
+		for bytesWritten < len(marshaledMessage) {
+			n, err := writer.Write(marshaledMessage)
+			bytesWritten += n
+			if err != nil {
+				break writeLoop
+			}
+		}
+	}
 }
