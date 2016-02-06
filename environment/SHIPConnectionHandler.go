@@ -1,5 +1,5 @@
 // SHIPConnectionHandler
-package env
+package environment
 
 import (
 	"bufio"

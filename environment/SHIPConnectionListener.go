@@ -1,5 +1,5 @@
 // SHIPConnectionListener
-package env
+package environment
 
 import (
 	"fmt"
