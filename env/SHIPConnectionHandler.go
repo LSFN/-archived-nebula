@@ -11,50 +11,24 @@ import (
 	"github.com/LSFN/shipenvproto"
 )
 
-type SHIPConnectionHandlerInputMessageType int
-
-const (
-	SCH_DISCONNECT = iota
-)
-
-type SHIPConnectionHandlerInputMessage struct {
-	messageType SHIPConnectionHandlerInputMessageType
-}
-
-type SHIPConnectionHandlerOutputMessageType int
-
-const (
-	SCH_DISCONNECTED = iota
-)
-
-type SHIPConnectionHandlerOutputMessage struct {
-	messageType SHIPConnectionHandlerOutputMessageType
-}
-
 const (
 	DEFAULT_READ_BUFFER_SIZE = 4096
 )
 
 type SHIPConnectionHandler struct {
-	inputMessageChannel  chan SHIPConnectionHandlerInputMessage
-	outputMessageChannel chan SHIPConnectionHandlerOutputMessage
-	inboundMessages      chan *shipenvproto.SHIPtoENV
-	outboundMessages     chan *shipenvproto.ENVtoSHIP
+	inboundMessages  chan *shipenvproto.SHIPtoENV
+	outboundMessages chan *shipenvproto.ENVtoSHIP
 }
 
 func (c *SHIPConnectionHandler) Start(conn net.Conn) {
-
-	c.inputMessageChannel = make(chan SHIPConnectionHandlerInputMessage)
-	c.outputMessageChannel = make(chan SHIPConnectionHandlerOutputMessage)
 	c.inboundMessages = make(chan *shipenvproto.SHIPtoENV)
 	c.outboundMessages = make(chan *shipenvproto.ENVtoSHIP)
 
-	go c.ReadMessages(conn)
+	go c.readMessages(conn)
 	go c.writeMessages(conn)
-
 }
 
-func (c *SHIPConnectionHandler) ReadMessages(conn net.Conn) {
+func (c *SHIPConnectionHandler) readMessages(conn net.Conn) {
 	defer conn.Close()
 
 	reader := bufio.NewReader(conn)
@@ -100,7 +74,7 @@ readLoop:
 
 	// The SHIP has disconnected or the connection has suffered an error
 	// Close the inbound channel to indicate this to the next layer
-	c.inboundMessages.close()
+	close(c.inboundMessages)
 }
 
 func (c *SHIPConnectionHandler) writeMessages(conn net.Conn) {
