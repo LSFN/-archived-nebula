@@ -7,5 +7,5 @@ import (
 
 func main() {
 	env := new(environment.ENV)
-	env.start()
+	env.Start()
 }
