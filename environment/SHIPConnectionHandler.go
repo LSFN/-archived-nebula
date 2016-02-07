@@ -16,11 +16,13 @@ const (
 )
 
 type SHIPConnectionHandler struct {
+	id               string
 	inboundMessages  chan *shipenvproto.SHIPtoENV
 	outboundMessages chan *shipenvproto.ENVtoSHIP
 }
 
 func (c *SHIPConnectionHandler) Start(conn net.Conn) {
+	c.id = conn.RemoteAddr().String()
 	c.inboundMessages = make(chan *shipenvproto.SHIPtoENV)
 	c.outboundMessages = make(chan *shipenvproto.ENVtoSHIP)
 
