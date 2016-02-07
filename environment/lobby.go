@@ -2,18 +2,21 @@
 package environment
 
 type Lobby struct {
-	connectionListener *SHIPConnectionListener
-	connections        []*SHIPConnectionHandler
 }
 
-func (lobby *Lobby) ConnectionListener() *SHIPConnectionListener {
-	return lobby.connectionListener()
+func (lobby *Lobby) Start(gameState *GameState) {
+	go lobby.handleConnectionEvents(gameState.connectionManager.info)
 }
 
-func (lobby *Lobby) Connections() []*SHIPConnectionHandler {
-	return lobby.connections()
-}
+func (lobby *Lobby) handleConnectionEvents(connEventChan chan SCMInfo) {
+	for connEvent := range connEventChan {
+		switch connEvent.msgType {
+		case SCM_LISTEN_FAILED:
+			panic("SHIPConnectionManager stopped listening.")
+		case SCM_SHIP_CONNECTING:
 
-func (lobby *Lobby) Start() {
+		case SCM_SHIP_DISCONNECTING:
 
+		}
+	}
 }
