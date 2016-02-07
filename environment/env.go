@@ -11,53 +11,46 @@ const (
 )
 
 // Game States
-type GameStateName int
+type GamePhase int
 
 const (
-	UNINITIALISED = iota
-	LOBBY
-	SETUP
-	PLAY
-	CLEANUP
+	PHASE_UNINITIALISED = iota
+	PHASE_LOBBY
+	PHASE_SETUP
+	PHASE_PLAY
+	PHASE_CLEANUP
 )
-
-type GameState interface {
-	ConnectionListener() *SHIPConnectionListener
-	Connections() []*SHIPConnectionHandler
-	Start()
-}
 
 type ENV struct {
 }
 
-func (env *ENV) start() {
-	var currentGameState *GameState
-	currentGameStateName := UNINITIALISED
-	nextGameStateName := LOBBY
+func (env *ENV) Start() {
+	fmt.Println("Starting ENV")
+	gameState := new(GameState) // Might just put GameState stuff in ENV struct.
+	currentGamePhase := PHASE_UNINITIALISED
+	nextGamePhase := PHASE_LOBBY
 
-	// Things to pass to the following state
-	var connectionListener *SHIPConnectionListener
-	var shipConnections []*SHIPConnectionHandler
+	var lobby *Lobby
 
 	for {
-		switch currentGameStateName {
-		case UNINITIALISED:
-			connectionListener = new(SHIPConnectionListener)
-			connectionListener.Start(LISTENING_PORT)
-		case LOBBY:
-		case SETUP:
-		case PLAY:
-		case CLEANUP:
+		switch currentGamePhase {
+		case PHASE_UNINITIALISED:
+			gameState.connectionManager = new(SHIPConnectionManager)
+			gameState.connectionManager.Start(LISTENING_PORT)
+		case PHASE_LOBBY:
+		case PHASE_SETUP:
+		case PHASE_PLAY:
+		case PHASE_CLEANUP:
 		}
 
-		currentGameStateName = nextGameStateName
+		currentGamePhase = nextGamePhase
 
-		switch currentGameStateName {
-		case LOBBY:
-
-		case SETUP:
-		case PLAY:
-		case CLEANUP:
+		switch currentGamePhase {
+		case PHASE_LOBBY:
+			lobby.Start(gameState)
+		case PHASE_SETUP:
+		case PHASE_PLAY:
+		case PHASE_CLEANUP:
 		}
 	}
 }
