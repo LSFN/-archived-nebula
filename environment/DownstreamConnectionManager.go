@@ -2,10 +2,20 @@
 package environment
 
 import (
+	"errors"
 	"fmt"
 	"net"
+	"time"
 
 	"github.com/LSFN/seprotocol"
+
+	"github.com/blang/semver"
+)
+
+const (
+	VERSION_HANDSHAKE_TIMEOUT = 1 // in seconds
+	NEBULA_PROTOCOL_VERSION   = "0.1.0"
+	ACCETPED_VERSION_RANGE    = ">=0.1.0 <0.2.0"
 )
 
 type SCMInfoType int
@@ -52,10 +62,56 @@ func (cm *DownstreamConnectionManager) listen(port uint16) {
 		}
 		handler := new(DownstreamConnectionHandler)
 		handler.Start(conn)
-		messenger := cm.manageConnection(handler)
-		cm.connections[handler.id] = messenger
-		cm.info <- SCMInfo{msgType: SCM_SHIP_CONNECTING, connectionID: handler.id}
+		go func() {
+			err := cm.performVersionHandshake(handler)
+			if err != nil {
+				fmt.Println(err)
+			} else {
+				messenger := cm.manageConnection(handler)
+				cm.connections[handler.id] = messenger
+				cm.info <- SCMInfo{msgType: SCM_SHIP_CONNECTING, connectionID: handler.id}
+			}
+		}()
 	}
+}
+
+func (cm *DownstreamConnectionManager) performVersionHandshake(handler *DownstreamConnectionHandler) error {
+	// Perform a version handshake with the ship server.
+	// The ship server first sends its version
+	var handshakeError error
+	select {
+	case <-time.After(time.Second * 1):
+		// The ship server hasn't immediately provided its protocol version
+		// Close the connection
+		close(handler.outboundMessages)
+		handshakeError = errors.New("Ship server didn't perform protocol version handshake.")
+	case msg := <-handler.inboundMessages:
+		// Read the version field
+		version, err := semver.Parse(msg.ProtocolVersion)
+		if err != nil {
+			close(handler.outboundMessages)
+			handshakeError = errors.New("Ship server didn't provide a valid protocol version.")
+		}
+		versionRange, err := semver.ParseRange(ACCETPED_VERSION_RANGE)
+		if err != nil {
+			panic("Constant ACCETPED_VERSION_RANGE is not a valid SemVer range! Blame the dev.")
+		}
+		if !versionRange(version) {
+			close(handler.outboundMessages)
+			handshakeError = errors.New("Ship server version (" + version.String() + ") doesn't satisfy required version range (" + ACCETPED_VERSION_RANGE + ").")
+		}
+	}
+
+	// Regardless of failure, send our protocol version
+	handler.outboundMessages <- &seprotocol.Downstream{ProtocolVersion: NEBULA_PROTOCOL_VERSION}
+
+	// If there was an error, close the connection
+	if handshakeError != nil {
+		close(handler.outboundMessages)
+	}
+
+	// Returns nil if a successful handshake was performed, error otherwise
+	return handshakeError
 }
 
 func (cm *DownstreamConnectionManager) manageConnection(handler *DownstreamConnectionHandler) *ShipServerMessenger {
@@ -84,4 +140,10 @@ func (cm *DownstreamConnectionManager) manageConnection(handler *DownstreamConne
 	}()
 
 	return messenger
+}
+
+func (cm *DownstreamConnectionManager) sendToAll(message *seprotocol.Downstream) {
+	for _, connection := range cm.connections {
+		connection.outbound <- message
+	}
 }

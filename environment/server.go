@@ -8,6 +8,7 @@ import (
 // Default settings
 const (
 	LISTENING_PORT = 39461
+	NEBULA_VERSION = "0.1.0"
 )
 
 // Game States
