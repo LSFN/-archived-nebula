@@ -1,4 +1,4 @@
-// env
+// server
 package environment
 
 import (
@@ -21,12 +21,12 @@ const (
 	PHASE_CLEANUP
 )
 
-type ENV struct {
+type Server struct {
 }
 
-func (env *ENV) Start() {
-	fmt.Println("Starting ENV")
-	gameState := new(GameState) // Might just put GameState stuff in ENV struct.
+func (server *Server) Start() {
+	fmt.Println("Starting Nebula")
+	gameState := new(GameState) // Might just put GameState stuff in Server struct.
 	currentGamePhase := PHASE_UNINITIALISED
 	nextGamePhase := PHASE_LOBBY
 
@@ -35,7 +35,7 @@ func (env *ENV) Start() {
 	for {
 		switch currentGamePhase {
 		case PHASE_UNINITIALISED:
-			gameState.connectionManager = new(SHIPConnectionManager)
+			gameState.connectionManager = new(DownstreamConnectionManager)
 			gameState.connectionManager.Start(LISTENING_PORT)
 		case PHASE_LOBBY:
 		case PHASE_SETUP:

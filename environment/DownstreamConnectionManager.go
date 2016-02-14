@@ -1,11 +1,11 @@
-// SHIPConnectionManager
+// DownstreamConnectionManager
 package environment
 
 import (
 	"fmt"
 	"net"
 
-	"github.com/LSFN/shipenvproto"
+	"github.com/LSFN/seprotocol"
 )
 
 type SCMInfoType int
@@ -22,23 +22,23 @@ type SCMInfo struct {
 	connectionID string
 }
 
-type SHIPMessenger struct {
-	inbound  <-chan *shipenvproto.SHIPtoENV
-	outbound chan<- *shipenvproto.ENVtoSHIP
+type ShipServerMessenger struct {
+	inbound  <-chan *seprotocol.Upstream
+	outbound chan<- *seprotocol.Downstream
 }
 
-type SHIPConnectionManager struct {
+type DownstreamConnectionManager struct {
 	info        chan SCMInfo
-	connections map[string]*SHIPMessenger
+	connections map[string]*ShipServerMessenger
 }
 
-func (cm *SHIPConnectionManager) Start(port uint16) {
+func (cm *DownstreamConnectionManager) Start(port uint16) {
 	cm.info = make(chan SCMInfo)
 
 	go cm.listen(port)
 }
 
-func (cm *SHIPConnectionManager) listen(port uint16) {
+func (cm *DownstreamConnectionManager) listen(port uint16) {
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
 		cm.info <- SCMInfo{msgType: SCM_LISTEN_FAILED, err: err}
@@ -50,7 +50,7 @@ func (cm *SHIPConnectionManager) listen(port uint16) {
 			cm.info <- SCMInfo{msgType: SCM_LISTEN_FAILED, err: err}
 			return
 		}
-		handler := new(SHIPConnectionHandler)
+		handler := new(DownstreamConnectionHandler)
 		handler.Start(conn)
 		messenger := cm.manageConnection(handler)
 		cm.connections[handler.id] = messenger
@@ -58,11 +58,11 @@ func (cm *SHIPConnectionManager) listen(port uint16) {
 	}
 }
 
-func (cm *SHIPConnectionManager) manageConnection(handler *SHIPConnectionHandler) *SHIPMessenger {
-	messenger := new(SHIPMessenger)
-	inbound := make(chan *shipenvproto.SHIPtoENV)
+func (cm *DownstreamConnectionManager) manageConnection(handler *DownstreamConnectionHandler) *ShipServerMessenger {
+	messenger := new(ShipServerMessenger)
+	inbound := make(chan *seprotocol.Upstream)
 	messenger.inbound = inbound
-	outbound := make(chan *shipenvproto.ENVtoSHIP)
+	outbound := make(chan *seprotocol.Downstream)
 	messenger.outbound = outbound
 
 	// Inbound messages

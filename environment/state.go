@@ -2,5 +2,5 @@
 package environment
 
 type GameState struct {
-	connectionManager *SHIPConnectionManager
+	connectionManager *DownstreamConnectionManager
 }

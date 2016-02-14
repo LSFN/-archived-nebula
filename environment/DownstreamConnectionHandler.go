@@ -1,4 +1,4 @@
-// SHIPConnectionHandler
+// DownstreamConnectionHandler
 package environment
 
 import (
@@ -8,29 +8,29 @@ import (
 
 	"github.com/golang/protobuf/proto"
 
-	"github.com/LSFN/shipenvproto"
+	"github.com/LSFN/seprotocol"
 )
 
 const (
 	DEFAULT_READ_BUFFER_SIZE = 4096
 )
 
-type SHIPConnectionHandler struct {
+type DownstreamConnectionHandler struct {
 	id               string
-	inboundMessages  chan *shipenvproto.SHIPtoENV
-	outboundMessages chan *shipenvproto.ENVtoSHIP
+	inboundMessages  chan *seprotocol.Upstream
+	outboundMessages chan *seprotocol.Downstream
 }
 
-func (c *SHIPConnectionHandler) Start(conn net.Conn) {
+func (c *DownstreamConnectionHandler) Start(conn net.Conn) {
 	c.id = conn.RemoteAddr().String()
-	c.inboundMessages = make(chan *shipenvproto.SHIPtoENV)
-	c.outboundMessages = make(chan *shipenvproto.ENVtoSHIP)
+	c.inboundMessages = make(chan *seprotocol.Upstream)
+	c.outboundMessages = make(chan *seprotocol.Downstream)
 
 	go c.readMessages(conn)
 	go c.writeMessages(conn)
 }
 
-func (c *SHIPConnectionHandler) readMessages(conn net.Conn) {
+func (c *DownstreamConnectionHandler) readMessages(conn net.Conn) {
 	defer conn.Close()
 
 	reader := bufio.NewReader(conn)
@@ -65,7 +65,7 @@ readLoop:
 		}
 
 		// Unmarshal the message
-		message := new(shipenvproto.SHIPtoENV)
+		message := new(seprotocol.Upstream)
 		if err := proto.Unmarshal(msgReadBuffer, message); err != nil {
 			break
 		}
@@ -79,7 +79,7 @@ readLoop:
 	close(c.inboundMessages)
 }
 
-func (c *SHIPConnectionHandler) writeMessages(conn net.Conn) {
+func (c *DownstreamConnectionHandler) writeMessages(conn net.Conn) {
 	defer conn.Close()
 	writer := bufio.NewWriter(conn)
 

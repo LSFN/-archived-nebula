@@ -2,10 +2,10 @@
 package main
 
 import (
-	"github.com/LSFN/ENV/environment"
+	"github.com/LSFN/nebula/environment"
 )
 
 func main() {
-	env := new(environment.ENV)
+	env := new(environment.Server)
 	env.Start()
 }
