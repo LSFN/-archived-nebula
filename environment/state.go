@@ -2,6 +2,7 @@
 package environment
 
 type GameState struct {
-	connectionManager *DownstreamConnectionManager
-	shipInfo          map[string]*ShipInfo
+	connectionManager      *DownstreamConnectionManager
+	shipInfoByShipServerID map[string]*ShipInfo
+	shipInfoByConnectionID map[string]*ShipInfo
 }

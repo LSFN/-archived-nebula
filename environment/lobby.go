@@ -14,12 +14,14 @@ type Lobby struct {
 type ShipInfo struct {
 	shipServerID string
 	shipName     string
+	connectionID string
 }
 
 func (lobby *Lobby) Start(gameState *GameState) {
 	// TODO start using infromation from a game coming from the cleanup phase
 	lobby.gameState = gameState
-	lobby.gameState.shipInfo = make(map[string]*ShipInfo)
+	lobby.gameState.shipInfoByShipServerID = make(map[string]*ShipInfo)
+	lobby.gameState.shipInfoByConnectionID = make(map[string]*ShipInfo)
 	go lobby.handleConnectionEvents(gameState.connectionManager.info)
 }
 
@@ -31,15 +33,20 @@ func (lobby *Lobby) handleConnectionEvents(connEventChan chan SCMInfo) {
 			// TODO something sensible
 		case SCM_SHIP_CONNECTING:
 			// Start listening to new connections
-			go lobby.listenToShipServer(lobby.gameState.connectionManager.connections[connEvent.connectionID])
+			go lobby.listenToShipServer(connEvent.connectionID)
 		case SCM_SHIP_DISCONNECTING:
 
 		}
 	}
 }
 
-func (lobby *Lobby) listenToShipServer(messenger *ShipServerMessenger) {
+func (lobby *Lobby) listenToShipServer(connectionID string) {
+	messenger := lobby.gameState.connectionManager.connections[connectionID]
 	hasJoined := false
+	shipInfo := &ShipInfo{
+					shipServerID: uuid.New(), // Ships cannot reconnect per-se in the lobby phase so they are always issued a new UUID
+					connectionID: connectionID,
+				}
 
 	for msg := range messenger.inbound {
 		if !hasJoined {
@@ -58,8 +65,8 @@ func (lobby *Lobby) listenToShipServer(messenger *ShipServerMessenger) {
 				close(messenger.outbound)
 				break
 			} else {
-				// Ships cannot reconnect per-se in the lobby phase so they are always issued a new UUID
-				shipInfo := &ShipInfo{shipServerID: uuid.New(), shipName: msg.SetShipName}
+				// If it is provided, set the ship's name
+				shipInfo.shipName = msg.SetShipName
 
 				// Send the join response
 				messenger.outbound <- &seprotocol.Downstream{
@@ -85,7 +92,8 @@ func (lobby *Lobby) listenToShipServer(messenger *ShipServerMessenger) {
 				})
 
 				// Acknowledge join success in local state
-				lobby.gameState.shipInfo[shipInfo.shipServerID] = shipInfo
+				lobby.gameState.shipInfoByShipServerID[shipInfo.shipServerID] = shipInfo
+				lobby.gameState.shipInfoByConnectionID[shipInfo.connectionID] = shipInfo
 				hasJoined = true
 
 				// Send a lobby membership message to the newly connecting ship server
@@ -94,15 +102,33 @@ func (lobby *Lobby) listenToShipServer(messenger *ShipServerMessenger) {
 				}
 			}
 		} else {
-			// TODO other lobby messages
+			switch {
+				case msg.SetShipName != nil {
+					// Rename the ship
+					shipInfo.shipName = msg.SetShipName
+					
+					// Send update to all
+					lobby.gameState.connectionManager.sendToAll(&seprotocol.Downstream{
+						LobbyMembership: &seprotocol.LobbyMembership{
+							InfoType: seprotocol.LobbyMembership_NAME_CHANGE,
+							LobbyMembers: []*seprotocol.LobbyMembership_LobbyMemberInfo{
+								&seprotocol.LobbyMembership_LobbyMemberInfo{
+									ShipServerID: shipInfo.shipServerID,
+									ShipName:     shipInfo.shipName,
+								},
+							},
+						},
+					})
+				}
+			}
 		}
 	}
 }
 
 func (lobby *Lobby) makeLobbyMembershipMessage() *seprotocol.LobbyMembership {
-	lobbyMembers := make([]*seprotocol.LobbyMembership_LobbyMemberInfo, len(lobby.gameState.shipInfo))
+	lobbyMembers := make([]*seprotocol.LobbyMembership_LobbyMemberInfo, len(lobby.gameState.shipInfoByShipServerID))
 	i := 0
-	for _, shipInfo := range lobby.gameState.shipInfo {
+	for _, shipInfo := range lobby.gameState.shipInfoByShipServerID {
 		lobbyMembers[i] = &seprotocol.LobbyMembership_LobbyMemberInfo{
 			ShipServerID: shipInfo.shipServerID,
 			ShipName:     shipInfo.shipName,
