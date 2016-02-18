@@ -44,9 +44,9 @@ func (lobby *Lobby) listenToShipServer(connectionID string) {
 	messenger := lobby.gameState.connectionManager.connections[connectionID]
 	hasJoined := false
 	shipInfo := &ShipInfo{
-					shipServerID: uuid.New(), // Ships cannot reconnect per-se in the lobby phase so they are always issued a new UUID
-					connectionID: connectionID,
-				}
+		shipServerID: uuid.New(), // Ships cannot reconnect per-se in the lobby phase so they are always issued a new UUID
+		connectionID: connectionID,
+	}
 
 	for msg := range messenger.inbound {
 		if !hasJoined {
@@ -103,23 +103,22 @@ func (lobby *Lobby) listenToShipServer(connectionID string) {
 			}
 		} else {
 			switch {
-				case msg.SetShipName != nil {
-					// Rename the ship
-					shipInfo.shipName = msg.SetShipName
-					
-					// Send update to all
-					lobby.gameState.connectionManager.sendToAll(&seprotocol.Downstream{
-						LobbyMembership: &seprotocol.LobbyMembership{
-							InfoType: seprotocol.LobbyMembership_NAME_CHANGE,
-							LobbyMembers: []*seprotocol.LobbyMembership_LobbyMemberInfo{
-								&seprotocol.LobbyMembership_LobbyMemberInfo{
-									ShipServerID: shipInfo.shipServerID,
-									ShipName:     shipInfo.shipName,
-								},
+			case msg.SetShipName != "":
+				// Rename the ship
+				shipInfo.shipName = msg.SetShipName
+
+				// Send update to all
+				lobby.gameState.connectionManager.sendToAll(&seprotocol.Downstream{
+					LobbyMembership: &seprotocol.LobbyMembership{
+						InfoType: seprotocol.LobbyMembership_NAME_CHANGE,
+						LobbyMembers: []*seprotocol.LobbyMembership_LobbyMemberInfo{
+							&seprotocol.LobbyMembership_LobbyMemberInfo{
+								ShipServerID: shipInfo.shipServerID,
+								ShipName:     shipInfo.shipName,
 							},
 						},
-					})
-				}
+					},
+				})
 			}
 		}
 	}
