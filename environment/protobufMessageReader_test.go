@@ -1,66 +1,55 @@
 package environment
 
 import (
-	"bytes"
+	"bufio"
 	"encoding/binary"
-	"fmt"
+	"io"
 	"testing"
 )
 
 func TestNew(t *testing.T) {
 	tests := []struct {
-		maxBytesPerMessage         uint64
-		expectedMaxBytesPerMessage uint64
-		expectedBytesForLength     uint8
-		maxBufferedMessages        uint
-		expectedBufferedMessages   uint
+		maxBufferedMessages      uint
+		expectedBufferedMessages uint
 	}{
-		{0, 255, 1, 10, 10},
-		{255, 255, 1, 0, 1},
-		{255, 255, 1, 10, 10},
-		{256, 256, 2, 10, 10},
-		{(1 << 16) - 1, (1 << 16) - 1, 2, 10, 10},
-		{(1 << 16), (1 << 16), 3, 10, 10},
-		{(1 << 24) - 1, (1 << 24) - 1, 3, 10, 10},
-		{(1 << 24), (1 << 24), 4, 10, 10},
-		{(1 << 32) - 1, (1 << 32) - 1, 4, 10, 10},
-		{(1 << 32), (1 << 32), 5, 10, 10},
+		{10, 10},
+		{0, 1},
 	}
 
 	for _, test := range tests {
-		pmr := NewProtobufMessageReader(test.maxBytesPerMessage, test.maxBufferedMessages)
-		if pmr.maxBytesPerMessage != test.expectedMaxBytesPerMessage {
-			t.Fatalf("maxBytesPerMessage was %d, expected %d", pmr.maxBytesPerMessage, test.expectedMaxBytesPerMessage)
-		}
-		if pmr.bytesForLength != test.expectedBytesForLength {
-			t.Fatalf("bytesForLength was %d, expected %d", pmr.bytesForLength, test.expectedBytesForLength)
-		}
+		pmr := NewProtobufMessageReader(test.maxBufferedMessages)
 		if pmr.maxBufferedMessages != test.expectedBufferedMessages {
-			t.Fatalf("Max bytes was %d, expected %d", pmr.maxBufferedMessages, test.maxBufferedMessages)
+			t.Fatalf("maxBufferedMessages was %d, expected %d\n", pmr.maxBufferedMessages, test.maxBufferedMessages)
 		}
 	}
 }
 
 func TestReadMessages(t *testing.T) {
-	pmr := NewProtobufMessageReader((1<<16)-1, 1)
+	pmr := NewProtobufMessageReader(1)
+	pipeReader, pipeWriter := io.Pipe()
+	bufferChannel := make(chan []byte)
+	go pmr.readMessagesUntilError(bufio.NewReader(pipeReader), bufferChannel)
 
 	message := "Hello, World!"
-	buf := new(bytes.Buffer)
-	length := uint16(len(message))
-	fmt.Println("Message length is", length)
-	if err := binary.Write(buf, binary.LittleEndian, length); err != nil {
-		fmt.Println("error", err)
+	rawMessageLength := make([]byte, 8)
+	lengthBytes := binary.PutUvarint(rawMessageLength, uint64(len(message)))
+	rawMessageLength = rawMessageLength[:lengthBytes]
+	if n, err := pipeWriter.Write(rawMessageLength); err != nil {
+		t.Fatalf("Couldn't write all of message length to pipeWriter, wrote %d bytes, error %s", n, err)
 	}
-	fmt.Printf("Buffer: % x\n", buf)
-	buf.WriteString(message)
-	fmt.Printf("Buffer: % x\n", buf)
-	bufferChannel := make(chan []byte)
+	if n, err := pipeWriter.Write([]byte(message)); err != nil {
+		t.Fatalf("Couldn't write all of message to pipeWriter, wrote %d bytes, error %s", n, err)
+	}
+	pipeWriter.Close()
 
-	pmr.readMessagesUntilError(buf, bufferChannel)
 	rawMessageBuffer := <-bufferChannel
 	convertedMessageBuffer := string(rawMessageBuffer)
 	if convertedMessageBuffer != message {
 		t.Fatalf("convertedMessageBuffer was %s, expected %s", convertedMessageBuffer, message)
 	}
 
+	_, more := <-bufferChannel
+	if more {
+		t.Fatal("expected bufferChannel to be closed but it isn't")
+	}
 }
