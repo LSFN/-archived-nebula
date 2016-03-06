@@ -7,23 +7,6 @@ import (
 	"testing"
 )
 
-func TestNew(t *testing.T) {
-	tests := []struct {
-		maxBufferedMessages      uint
-		expectedBufferedMessages uint
-	}{
-		{10, 10},
-		{0, 1},
-	}
-
-	for _, test := range tests {
-		pmr := NewProtobufMessageReader(test.maxBufferedMessages)
-		if pmr.maxBufferedMessages != test.expectedBufferedMessages {
-			t.Fatalf("maxBufferedMessages was %d, expected %d\n", pmr.maxBufferedMessages, test.maxBufferedMessages)
-		}
-	}
-}
-
 func TestReadMessages(t *testing.T) {
 	pmr := NewProtobufMessageReader(1)
 	pipeReader, pipeWriter := io.Pipe()

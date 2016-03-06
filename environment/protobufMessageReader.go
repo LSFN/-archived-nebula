@@ -8,20 +8,12 @@ import (
 )
 
 type protobufMessageReader struct {
-	maxBytesPerMessage  uint64
-	bytesForLength      uint8
 	maxBufferedMessages uint
 }
 
 func NewProtobufMessageReader(maxBufferedMessages uint) *protobufMessageReader {
 	msgReader := new(protobufMessageReader)
 	msgReader.maxBufferedMessages = maxBufferedMessages
-
-	// Constrain maxBufferedMessages to a minimum
-	if msgReader.maxBufferedMessages < 1 {
-		msgReader.maxBufferedMessages = 1
-	}
-
 	return msgReader
 }
 
